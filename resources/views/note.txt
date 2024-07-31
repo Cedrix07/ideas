@@ -1,0 +1,508 @@
+Controllers
+- handles request
+- to interact with models and view and dictates the flow of application
+
+how to make controller in terminal:
+php artisan make:controller controllerName
+
+ROUTES
+Go to laravel Naming Resource Routes for proper way of naming the routes it is IMPORTANT*
+
+
+route and controller
+               controller name        function that you want to use  from controller
+Route::get('/',ControllerName::class, 'index');
+
+sending data from controller to views
+        page        data you want to pass in view
+return('index',['users'=>$users]);
+
+
+Model
+- Handle data logic and interactions with database
+- get the data from database then return to controller
+- php artisan make:model ModelName  > way to create model
+
+How to call model inside of controller's function
+public function index(){
+    $idea = Idea();
+    $idea->content = "test";
+    $idea->likes = 0;
+    $idea->save(); //to save from database
+
+    return ('dashboard');
+}
+
+other way to insert a data from a column but you must have a protected $fillable = ['content', 'column'] in model file
+public function index(){
+    $idea = Idea([
+        'content' = 'test',
+        'likes' = 0
+    ]);
+    $idea->save(); //to save from database
+
+    return ('dashboard',
+    [
+        'ideas' => Idea::all() //displaying the data from database to the page by calling the model class and all() method
+    ]
+    );
+}
+
+methods :
+1.  all() - gets all records in the database
+2.
+Views
+- what should be shown to the users.
+
+==============================================================================================================================================================================
+Laravel Blade
+{{ }} is like echo
+
+
+Blade templates
+- separating of code for readability
+- best practice is to create the folder from views where you will store block of code
+
+
+@extends('layout.layout')
+@yield('content')
+@section('content') @endsection
+
+==============================================================================================================================================================================
+migration file
+- this is where we create the columns for our database table
+- it has a up and down function
+- up function is the one that will convert the laravel code into sql schema and send it to database
+- down function is used to reverse migrations such as rollback, undo, revert, drop.
+
+example of code:
+  public function up(): void
+    {
+        Schema::create('ideas', function (Blueprint $table) {
+            $table->id();
+            $table->string('content');
+            $table->unsignedInteger('likes')->default(0);
+            $table->timestamps(); //automatically create created_at and updated_at column
+        });
+    }
+
+update the database table after creating a column  in terminal
+- php artisan migrate
+
+creating migration using terminal
+- php artisan make:migration create_users_table
+
+==============================================================================================================================================================================
+form submitting
+> make sure you write the @csrf inside form
+> make sure you have name on the input fields in form
+
+
+1. create controller (php artisan make:controller ControllerName)
+
+(keyword: rpite access to controller)
+2. create the route access the controller name you want
+    example: Route::post('/idea', [IdeaController::class, 'store'] )->name('idea.create');
+
+(keyword: connect form to route)
+3. use the route you create in the form action = "{{route('route-name)}}"
+    example: <form method="POST" action="{{route('idea.create')}}">
+
+(keyword: getting inputs from form)
+3.2 request()->get('idea',null) same as $_POST of php for getting the input value from form
+
+4. you can use request()-> get('input-name', ''); to grab the input value and send to the database
+    example:  $idea = Idea::create(["content"=>request()->get('idea',null)]); or $idea = new Idea(["content"=>request()->get('idea',null)]);
+              $idea->save();
+    *The column of the table must be declared in fillable in your Model file.
+
+5. use redirect()->route('route-name'); to redirect to a particular page after successfully submitting the form.
+
+SESSION HELPER
+example of success message after submitting the form (keyword: Flash Messages)
+
+put in controller:
+return redirect()->route("dashboard")->with("success","Idea was created successfully");
+
+in your blade alert or any custom message:
+@if(session()->has('success'))
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        {{session('success')}}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+@endif
+
+===============================================================================================================================================================================
+VALIDATIONS
+request()->validate([
+        "idea"=> "required|min:5|max:240",
+    ]);
+
+//showing an error message to the view page
+@error('idea')
+    <span class="text-danger fs-6">{{ $message }}</span>
+@enderror
+
+==============================================================================================================================================================================
+PAGINATION
+ return view('dashboard',['ideas' => Idea::orderBy('created_at', 'DESC')->paginate(5)]);
+
+to add a button for pagination, input this in your blade file where you will use the pagination
+{{$ideas->links()}}
+
+To fix the style of buttons in pagination go to:
+app > providers > AppServiceProvider.php put this on public function boot:  Paginator::useBootstrapFive();
+    - if you're using bootstrap 5 styles for class
+    - default pagination button uses tailwind css
+
+==============================================================================================================================================================================
+DELETE CRUD
+> always check the naming convention for routing for readability purposes.
+> use "destroy" for naming convention in this case.
+
+example on deleting a specific things such as user, post, etc:
+> make sure you pass the id of that user, or whastoever as 2nd parameter in the route()
+<form action="{{route('ideas.destroy',$idea->id)}}" method="post">
+    @csrf
+    @method('delete')
+    <button class="btn btn-danger btn-sm"> x </button>
+</form>
+
+//deleting route crud
+Route::delete('/ideas/{id}', [IdeaController::class,'destroy'])->name('ideas.destroy');
+
+Controller for deleting specific
+//deleting a specific post
+public function destroy($id){
+    //delete the first matches value
+    $idea = Idea::where('id',$id)->firstOrFail()->delete();
+    return redirect()->route("dashboard")->with("success","Idea deleted successfully");
+}
+
+first()
+> getting the first matching value
+
+firstOrFail()
+> finds the first matching value but if not found, it will show 404 not found
+
+=============================================================================================================================================================================
+Route Model Binding
+> makes the code for performing the crud shorter
+> The parameter in a controller method must have same name in the route parameter to make it work*
+
+Example for delete crud using route model binding (compare it to the previous example for deleting a specific data):
+
+Route for this method:
+Route::delete('/ideas/{id}', [IdeaController::class,'destroy'])->name('ideas.destroy');
+
+The method inside the controller:
+public function destroy(Idea $id){
+    $id->delete();
+    return redirect()->route("dashboard")->with("success","Idea deleted successfully");
+}
+
+=============================================================================================================================================================================
+Showing Specific Data in the web
+> always check the naming convention for routing for readability purposes.
+> use "show" for naming convention in this case.
+
+In the Route:
+Route::get('/ideas/{idea}',[IdeaController::class,'show'])->name('ideas.show');
+
+In the form blade:
+ <a class="ms-1" href="{{route('ideas.show',$idea->id)}}">View</a>
+
+ In the Controller:
+ public function show(Idea $idea){
+    return view("ideas.show",['idea'=> $idea]);
+}
+
+======================================================================================
+======================================================================================
+Compact
+> automatically create an associative with a name based on what you declared in the parameter
+
+>   return view("ideas.show",['idea'=> $idea]); is the same as return view("ideas.show",compact('idea'));
+
+======================================================================================
+======================================================================================
+UPDATE CRUD
+> use method put in form @method('put')
+> use also in the routing the put instead of post or get
+    -  Route::put('/ideas/{idea}',[IdeaController::class,'update'])->name('ideas.update');
+exampl code for update
+public function update(Idea $idea){
+    request()->validate([
+        "content"=> "required|min:5|max:240",
+    ]);
+    $idea->content = request()->get("content",null);
+    $idea->save();
+    return view("ideas.show",compact("idea", "editing"));
+}
+======================================================================================
+======================================================================================
+SEARCH example code:
+
+controller:
+    public function index(){
+        $ideas = Idea::orderBy('created_at', 'DESC');
+        if(request()->has('search')){
+            $ideas = $ideas->where('content','like','%'.request()->get('search','').'%');
+        }
+        return view('dashboard', ['ideas'=> $ideas->paginate(5)]);
+    }
+
+1. $ideas = Idea::orderBy('created_at', 'DESC'); > This line fetches all the ideas from the 'ideas' table in the database and orders them by the 'created_at' column in descending order.
+
+2. if(request()->has('search')){ ... } > This block checks if there is a 'search' parameter in the request. If so, it filters the ideas based on the 'content' column using the where method.
+
+3.  $ideas = $ideas->where('content','like','%'.request()->get('search','').'%'); > If there is a 'search' parameter, filter the ideas based on the 'content' column
+
+4. return view('dashboard', ['ideas'=> $ideas->paginate(5)]); > This line passes the paginated ideas as the 'ideas' variable to the 'dashboard' view. In Blade, you can then use @foreach to loop through these ideas in your view.
+======================================================================================
+======================================================================================
+Relationships Laravel
+
+how to create a foreign key relation ship in migration file:
+    > $table->foreignId('idea_id')->constrained()->cascadeOnDelete(); //foreign key
+
+Defining relationship in the model file
+
+ public function comments(){
+        return $this->hasMany(Comment::class);
+}
+
+> I created a function inside the idea Model for setting up the relationship between Idea and Comment table.
+> using hasMany() and delcaring the class of comment to point out that the comment table is the one you want to have relation with Idea table.
+======================================================================================
+======================================================================================
+Secure way of getting the input of user with validation
+
+example 1:
+public function store(){
+    $validated = request()->validate([
+        "content"=> "required|min:5|max:240",
+    ]);
+    Idea::create($validated);
+    return redirect()->route("dashboard")->with("success","Idea was created successfully");
+}
+
+example 2:
+public function update(Idea $idea){
+    $validated = request()->validate([
+        "content"=> "required|min:5|max:240",
+    ]);
+    $idea->update([$validated]);
+    return redirect()->route('ideas.show',$idea->id)->with('success','Idea Updated Successfully');
+}
+
+As shown in the two examples, it is much shorter, readable, and more secure to get the input from the users.
+======================================================================================
+======================================================================================
+USER AUTHENTICATION
+> make sure to create route for view and process of submitting of registration
+
+User registration steps:
+1. validate
+2. create
+3. redirect
+
+Registration Example route:
+1. Registration view:
+    > Route::get('/register', [AuthController::class,'register'])->name('register');
+2. Process of submitting Route:
+    > Route::post('/register', [AuthController::class,'store']);
+
+Registration Example method in Controller:
+1. Registration view:
+ public function register()
+    {
+        return view("auth.register");
+    }
+
+2. Registration Process:
+public function store()
+{
+    $validated = request()->validate([
+        'name' => 'required|min:3|max:40',
+        'email' => 'required|email|unique:users,email',
+        'password' => 'required|confirmed|min:8'
+    ]);
+    User::create(
+        [
+            'name' => $validated['name'],
+            'email' => $validated['email'],
+            'password' => Hash::make($validated['password'])
+        ]
+    );
+    return redirect()->route('dashboard')->with('success', 'Account created Successfully!');
+}
+
+Login Example route:
+1. Login view:
+   > Route::get('/login', [AuthController::class,'login'])->name('login');
+
+2. Login Process route:
+    > Route::post('/login', [AuthController::class,'authenticate']);
+
+Login example Controller:
+1. Login View:
+  public function login()
+    {
+        return view("auth.login");
+    }
+
+2. Login Process:
+    public function authenticate()
+        {
+            $validated = request()->validate([
+                'email' => 'required|email',
+                'password' => 'required|min:8'
+            ]);
+
+            if (auth()->attempt($validated)){
+                //clear session
+                request()->session()->regenerate();
+
+                return redirect()->route('dashboard')->with('success','Logged in successfully!');
+            }
+
+            return redirect()->route('login')->withErrors(['email'=>'No matching user found with the provided email and password']);
+        }
+
+
+3. Logout Process:
+    public function logout()
+        {
+            auth()->logout();
+            request()->session()->invalidate();
+            request()->session()->regenerateToken();
+            // return redirect()->route('dashboard')->with('success', 'Logged out Successfully!');
+            return redirect()->route('login')->with('success', 'Logged out Successfully!');
+        }
+
+4. Logout Route:
+    > Route::post('/logout', [AuthController::class,'logout'])->name('logout');
+================================================================================================================================
+ROUTE GROUPING
+> useful when you have to many routes.
+> grouping bunch of routes that's similar to each other
+> you can eliminate duplicate routing names
+
+How to create route group:
+> takes two parameter, first is set of settings/properties and second is anonymous function / closure.
+
+Example:
+Route::group(['prefix' => 'ideas', 'as' => 'ideas.', 'middleware' => ['auth']], function () {
+    //Create idea Route
+    Route::post('/', [IdeaController::class, 'store'])->name('store')->withoutMiddleware(['auth']);
+
+    //Show specific idea in the web
+    Route::get('/{idea}', [IdeaController::class, 'show'])->name('show')->withoutMiddleware(['auth']);
+
+    //Edit ideas view Route
+    Route::get('/{idea}/edit', [IdeaController::class, 'edit'])->name('edit');
+
+    //Update ideas Route (Update Process)
+    Route::put('/{idea}', [IdeaController::class, 'update'])->name('update');
+
+    //Delete ideas Route
+    Route::delete('/{idea_id}', [IdeaController::class, 'destroy'])->name('destroy');
+
+    //Route for creating a comment to a specific post
+    Route::post('/{idea}/comments', [CommentController::class, 'store'])->name('comments.store');
+});
+
+> in this example it accepts a two arguments first is the properties which contains the prefix for each route, alias name for each route, and also middleware auth. With these, you don't have to type multiple times the same word such as ideas in every route.
+
+> You can use withoutMiddleware(); if you don't want a particular route inside the group route to have a middleware setup or you can create another route group inside that group route.
+
+Creating Another Route file
+> Benefits of this is for separation of code for more readable code.
+> You can create another route file if you will have many
+routes in your project.
+Just put the important codes at the top like:
+
+use App\Http\Controllers\AuthController;
+use Illuminate\Support\Facades\Route;
+
+AND SETUP A ROUTE BASE PATH INSIDE THE APP > PROVIDERS > RouteServiceProvider.Php.
+example:
+ $this->routes(function () {
+    Route::middleware('api')
+        ->prefix('api')
+        ->group(base_path('routes/api.php'));
+
+    Route::middleware('web')
+        ->group(base_path('routes/web.php'));
+
+    //customize route file
+    Route::middleware('web')
+        ->group(base_path('routes/auth.php'));
+});
+
+> The last one is manually set up.
+================================================================================================================================
+ROUTE RESOURCE
+> It creates automatically all the 7 naming convention route that is listed in the laravel documentation so you don't have to manually create routes for crud one by one.
+
+Cons:
+> it also create a route that does not exists because there are some cases that you don't need to create a index route, create route, or etc. To avoid creating unecessary routes, you can use the except(['route_name','route_name']).
+
+Example:
+Route::resource('ideas',IdeaController::class)->except(['index','create']);
+
+> In this example, I created a route for ideas with except function to avoid creating unecessary routes (index and create in the example case).
+
+COUNTERPART OF EXCEPT IS ONLY
+Examples:
+
+Route::resource('ideas',IdeaController::class)->except(['index','create','show'])->middleware('auth');
+
+Route::resource('ideas',IdeaController::class)->only(['show']);
+
+> In this example, the first route will be create except for index, create, and show. It will also create or assigned a middleware auth for each route that'll be created. The second route will only create a show route without middleware auth.
+================================================================================================================================FORELSE
+> counterpart of foreach. It has the same function of foreach for displaying a value in a web. Its uniqueness is that it has @empty features where if there are no value found, it will have a message.
+> best use if you have search feature on your web.
+
+Example:
+@forelse ($ideas as $idea)
+    <div class="mt-3">
+        @include('shared.idea-card')
+    </div>
+    @empty
+        <p class="text-center mt-3">No Results Found.</p>
+@endforelse
+================================================================================================================================
+USING PHP ARTISAN MAKE:CONTROLLER WITH AUTOMATIC CREATION OF
+method crud inside the controller:
+php artisan make:controller UserController -r
+================================================================================================================================
+MAIL
+php artisan make:mail welcomeEmail
+
+================================================================================================================================
+EXAMPLE OF ACTIVE LINK code
+ <li class="nav-item">
+    <a class="{{Route::is('login') ? 'active' : '' }} nav-link" aria-current="page" href="{{ route('login') }}">Login</a>
+</li>
+> in this example I use Route::is() with shorthand if else to check if we are on the particular page.
+================================================================================================================================
+Laravel Debugar
+link: https://github.com/barryvdh/laravel-debugbar
+
+
+invokable controller
+pluck
+
+date formatting:
+toDateString()
+diffForHumans()
+
+create a migration table for admin
+ php artisan make:migration add_is_admin_to_users
+ use boolean for columns table 1 is admin 0 is regular user
+
+creating a middleware
+php artisan make:middleware middlewareName
